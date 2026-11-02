@@ -26,8 +26,9 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.chain import default_compatible, generate_grid, make_chain_task
 from core.docstore import DocStore
-from core.task import Step, Task, save_tasks
+from core.task import Task, save_tasks
 from testbeds.legal.cuad import Contract, load_category_descriptions, load_cuad
 
 # Presence categories used as conditions, with readable names. These all appear
@@ -118,6 +119,15 @@ def build_instructions(n_docs: int, conds: list[Condition], descriptions: dict[s
     return "\n".join(lines)
 
 
+def legal_compatible(chosen: list[Condition], cond: Condition) -> bool:
+    if not default_compatible(chosen, cond):
+        return False
+    # Two "governed by X" conditions can never both hold.
+    if cond.kind == "law" and cond.positive and any(c.kind == "law" and c.positive for c in chosen):
+        return False
+    return True
+
+
 def make_task(
     pool: list[Contract],
     n_docs: int,
@@ -125,80 +135,23 @@ def make_task(
     rng: random.Random,
     task_id: str,
     descriptions: dict[str, str],
-    max_attempts: int = 500,
 ) -> Task | None:
-    conds_all = all_conditions()
-    for _ in range(max_attempts):
-        docs = rng.sample(pool, n_docs)
-        by_id = {c.doc_id: c for c in docs}
-        current = set(by_id)
-        chosen: list[Condition] = []
-        golds: list[list[str]] = []
-        for s in range(n_steps):
-            remaining = n_steps - s
-            used = {(c.kind, c.key) for c in chosen}
-            options = []
-            for cond in conds_all:
-                if (cond.kind, cond.key) in used:
-                    continue
-                if cond.kind == "law" and cond.positive and any(
-                    c.kind == "law" and c.positive for c in chosen
-                ):
-                    continue
-                new = {d for d in current if cond.holds(by_id[d])}
-                # Strictly shrink, and leave room for the remaining steps to shrink too.
-                if len(new) >= remaining and len(new) < len(current):
-                    options.append((cond, new))
-            if not options:
-                break
-            # Prefer conditions that keep a moderate fraction, so chains stay long.
-            good = [(c, n) for c, n in options if 0.3 <= len(n) / len(current) <= 0.85] or options
-            # Clause conditions outnumber law conditions about 3 to 1, so give
-            # law conditions a fixed share to keep both kinds in the mix.
-            law = [(c, n) for c, n in good if c.kind == "law"]
-            if law and rng.random() < 0.3:
-                good = law
-            cond, new = rng.choice(good)
-            chosen.append(cond)
-            current = new
-            golds.append(sorted(new))
-        if len(chosen) != n_steps:
-            continue
-
-        steps = []
-        for i, (cond, gold) in enumerate(zip(chosen, golds)):
-            if i == 0:
-                q = f"Which contracts in the collection {cond.phrase()}?"
-            else:
-                q = f"Of the contracts in your previous answer, which {cond.phrase()}?"
-            steps.append(Step(question=q, gold=gold, condition=cond.to_dict()))
-
-        phrases = [c.phrase() for c in chosen]
-        if len(phrases) == 1:
-            joined = phrases[0]
-        else:
-            joined = ", ".join(phrases[:-1]) + ", and " + phrases[-1]
-        question = f"Which contracts in the collection {joined}?"
-
-        doc_ids = sorted(by_id)
-        total_chars = sum(len(by_id[d].text) for d in doc_ids)
-        return Task(
-            task_id=task_id,
-            domain="legal",
-            instructions=build_instructions(n_docs, chosen, descriptions),
-            question=question,
-            doc_ids=doc_ids,
-            steps=steps,
-            metadata={
-                "n_docs": n_docs,
-                "n_steps": n_steps,
-                "total_chars": total_chars,
-                "approx_tokens": total_chars // 4,
-                "n_gold": len(golds[-1]),
-                "source": "CUAD v1",
-            },
-        )
-    return None
+    return make_chain_task(
+        pool,
+        all_conditions(),
+        n_docs,
+        n_steps,
+        rng,
+        task_id=task_id,
+        domain="legal",
+        noun="contracts",
+        build_instructions=lambda n, conds: build_instructions(n, conds, descriptions),
+        compatible=legal_compatible,
+        # Clause conditions outnumber law conditions about 3 to 1, so give
+        # law conditions a fixed share to keep both kinds in the mix.
+        kind_boost={"law": 0.3},
+        metadata={"source": "CUAD v1"},
+    )
 
 
 def generate(
@@ -212,21 +165,14 @@ def generate(
     # Drop contracts whose governing law clause is redacted or unclear, so
     # governing-law gold answers are never ambiguous.
     pool = [c for c in contracts if not c.governing_law_unparsed]
-    tasks = []
-    for n_docs in n_docs_list:
-        for n_steps in n_steps_list:
-            rng = random.Random(f"{seed}-{n_docs}-{n_steps}")
-            made = 0
-            for k in range(n_tasks):
-                tid = f"legal-d{n_docs}-s{n_steps}-{k:03d}"
-                t = make_task(pool, n_docs, n_steps, rng, tid, descriptions)
-                if t is None:
-                    print(f"warning: could not build {tid}")
-                    continue
-                tasks.append(t)
-                made += 1
-            print(f"n_docs={n_docs:4d} n_steps={n_steps}: {made} tasks")
-    return tasks
+    return generate_grid(
+        lambda nd, ns, rng, tid: make_task(pool, nd, ns, rng, tid, descriptions),
+        "legal",
+        n_docs_list,
+        n_steps_list,
+        n_tasks,
+        seed,
+    )
 
 
 def main() -> None:

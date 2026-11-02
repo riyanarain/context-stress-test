@@ -2,7 +2,9 @@
 
 CS 224V project by Brooke Ballhaus and Riya Narain.
 
-We stress-test an automatic, lossless context-management harness for agents on long-horizon tasks, find where it breaks, and implement a task-agnostic improvement to its context policy. The harness keeps every tool result in full, shows the model a bounded working context that lists what is stored, and lets the agent's code read items back by reference. Base system: https://arxiv.org/abs/2602.07962
+We stress-test an automatic, lossless context-management harness for agents on long-horizon tasks, find where it breaks, and implement a task-agnostic improvement to its context policy. The harness keeps every tool result in full, shows the model a bounded working context that lists what is stored, and lets the agent's code read items back by reference.
+
+The original benchmark is LOCA-bench (https://github.com/hkust-nlp/LOCA-bench, paper: https://arxiv.org/abs/2602.07962), which scales mock-service tasks to fixed context sizes and ships several context strategies we use as baselines. This repo adds our own domain testbeds in the same spirit.
 
 ## Research question
 
@@ -12,9 +14,9 @@ Can agents scale to tasks with much more data and much longer horizons using aut
 
 All testbeds share one task template: the agent gets a large collection of documents or records and must answer questions that need details from many of them over many dependent steps. Answers are checked automatically against gold labels.
 
-- Biomedical: questions over clinical trial records (or an existing benchmark such as BixBench or MedAgentBench)
-- Legal: questions over contracts with clause annotations (for example CUAD)
-- Finance (optional): questions over SEC 10-K filings
+- Legal: questions over lawyer-annotated contracts (CUAD). Built.
+- Biomedical: questions over synthetic patient charts (Synthea). Built.
+- Finance (optional): questions over SEC 10-K filings. Not started.
 
 ## Scaling knobs
 
@@ -59,6 +61,20 @@ This writes all contracts to `data/legal/docs/` and 90 tasks to `data/legal/task
 
 For cheap debugging, generate a few tasks with `--n-docs 3 --n-tasks 2`.
 
+## Biomedical testbed (Synthea)
+
+Built on the Synthea synthetic patient sample (CSV release, Nov 2021): about 1,160 fully synthetic patients, so there is no real patient data. Each patient becomes one text chart with a short header and a dated log of encounters, diagnoses, medications, observations, procedures, immunizations, allergies, and care plans. Names, addresses, and ID numbers are left out.
+
+Conditions are a recorded diagnosis (20 clinical diagnoses), a prescribed medication ingredient (13), the most recent value of a lab or vital above a threshold (BMI, systolic blood pressure, hemoglobin A1c, total and LDL cholesterol), sex, birth year, and death date. Lab conditions need the latest value across the whole chart, so the agent has to track details spread over many encounters. Patients with ambiguous latest lab values and 13 charts over 400K characters are left out.
+
+```
+bash testbeds/biomedical/download.sh                 # Synthea CSV into data/raw/synthea/csv
+python -m testbeds.biomedical.generate --n-docs 10 50 200 --n-steps 1 3 5 --n-tasks 10
+python -m testbeds.biomedical.verify                 # re-checks every gold answer from chart text only
+```
+
+Collection sizes are similar to the legal testbed: about 100K tokens for 10 patients, 550K for 50, and 2.3M for 200.
+
 ## Tests
 
 ```
@@ -68,7 +84,7 @@ python -m pytest
 ## Layout
 
 ```
-core/         shared task format, checker, document store
+core/         shared task format, checker, document store, chained-condition generator
 tests/        unit tests
 harness/      wrapper around the prototype
 baselines/    truncation, rolling summary, production agent
