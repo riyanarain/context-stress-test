@@ -44,7 +44,12 @@ def main() -> None:
     ap.add_argument("--csv", action="store_true")
     args = ap.parse_args()
     path = Path(args.run_dir) / "results.jsonl"
-    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    latest = {}
+    for line in path.read_text().splitlines():
+        if line.strip():
+            r = json.loads(line)
+            latest[(r["task_id"], r["policy"])] = r  # reruns replace earlier attempts
+    rows = list(latest.values())
     table = summarize(rows)
     cols = ["family", "level", "policy", "n", "exact", "f1", "finished", "errors", "steps", "prompt_tokens",
             "max_context", "cost_usd"]

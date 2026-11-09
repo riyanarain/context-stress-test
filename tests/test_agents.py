@@ -82,7 +82,8 @@ class _Handler(BaseHTTPRequestHandler):
             name = "list_patients" if n == 1 else "finish"
             args = "{}" if n == 1 else json.dumps({"summary": "done"})
             msg = {"role": "assistant", "content": None, "tool_calls": [
-                {"id": f"call_{n}", "type": "function", "function": {"name": name, "arguments": args}}]}
+                {"id": f"call_{n}", "type": "function", "function": {"name": name, "arguments": args},
+                 "extra_content": {"google": {"thought_signature": f"sig{n}"}}}]}
         else:
             msg = {"role": "assistant", "content": "a summary"}
         resp = {"id": "x", "object": "chat.completion", "created": 0, "model": body["model"],
@@ -114,6 +115,8 @@ def test_openai_client_against_local_server(tmp_path, monkeypatch):
         sent = _Handler.calls[1]["messages"]
         assert sent[2]["tool_calls"][0]["function"]["name"] == "list_patients"
         assert sent[3]["role"] == "tool" and "patients" in sent[3]["content"]
+        # Gemini 3 thought signatures must be sent back unchanged
+        assert sent[2]["tool_calls"][0]["extra_content"] == {"google": {"thought_signature": "sig1"}}
         assert client.complete("hi")[0] == "a summary"
     finally:
         srv.shutdown()

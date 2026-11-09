@@ -69,13 +69,22 @@ class OpenAIChatClient:
     def chat(self, messages: list[dict], tools: list[dict]) -> tuple[dict, dict]:
         resp = self._create(messages=messages, tools=tools, tool_choice="auto")
         m = resp.choices[0].message
+        raw = m.model_dump(exclude_none=True)
         msg: dict = {"role": "assistant", "content": m.content or ""}
+        # Keep provider-specific fields so they are sent back on the next request.
+        # Gemini 3 models put a required "thought signature" in tool_calls[i].extra_content.
+        for key in ("extra_content", "reasoning_content"):
+            if key in raw:
+                msg[key] = raw[key]
         if m.tool_calls:
-            msg["tool_calls"] = [
-                {"id": tc.id, "type": "function",
-                 "function": {"name": tc.function.name, "arguments": tc.function.arguments or "{}"}}
-                for tc in m.tool_calls
-            ]
+            calls = []
+            for tc in raw.get("tool_calls", []):
+                tc = dict(tc)
+                tc["type"] = "function"
+                tc["function"] = {"name": tc["function"]["name"],
+                                  "arguments": tc["function"].get("arguments") or "{}"}
+                calls.append(tc)
+            msg["tool_calls"] = calls
         u = resp.usage
         usage = {"prompt_tokens": getattr(u, "prompt_tokens", 0) or 0,
                  "completion_tokens": getattr(u, "completion_tokens", 0) or 0}

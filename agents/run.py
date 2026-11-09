@@ -60,6 +60,7 @@ def main() -> None:
     ap.add_argument("--truncate-chars", type=int, default=3000)
     ap.add_argument("--summary-budget", type=int, default=16000)
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--max-errors", type=int, default=3, help="stop the run after this many errored episodes")
     ap.add_argument("--price-in", type=float, default=0.0, help="USD per 1M prompt tokens, for cost estimates")
     ap.add_argument("--price-out", type=float, default=0.0, help="USD per 1M completion tokens")
     ap.add_argument("--out", required=True)
@@ -71,11 +72,16 @@ def main() -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     results_path = out / "results.jsonl"
+    # Episodes that finished without an error are skipped; errored ones are retried.
+    # report.py keeps only the latest result for each (task, policy).
     done = set()
     if results_path.exists():
         for line in results_path.read_text().splitlines():
             r = json.loads(line)
-            done.add((r["task_id"], r["policy"]))
+            if r.get("error"):
+                done.discard((r["task_id"], r["policy"]))
+            else:
+                done.add((r["task_id"], r["policy"]))
     (out / "config.json").write_text(json.dumps(vars(args), indent=2))
 
     if args.client == "openai":
@@ -100,13 +106,21 @@ def main() -> None:
                 f.write(json.dumps(res) + "\n")
         return res
 
+    n_err = 0
     with ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
         futs = [ex.submit(work, t, p) for t, p in jobs]
         for fut in as_completed(futs):
             r = fut.result()
             flag = f"  ERROR {r['error']}" if r["error"] else ""
             print(f"{r['task_id']:20s} {r['policy']:9s} f1={r['f1']:.2f} exact={r['exact']:.0f} "
-                  f"steps={r['steps']:3d} prompt_tok={r['prompt_tokens']:,}{flag}")
+                  f"steps={r['steps']:3d} prompt_tok={r['prompt_tokens']:,}{flag}", flush=True)
+            if r["error"]:
+                n_err += 1
+                if n_err >= args.max_errors:
+                    print(f"stopping after {n_err} errors; fix the cause and rerun the same command")
+                    for f in futs:
+                        f.cancel()
+                    break
     print(f"results in {results_path}; summarize with: python -m agents.report {out}")
 
 

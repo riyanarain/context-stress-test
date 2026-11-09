@@ -77,7 +77,8 @@ def run_episode(task: dict, client, policy, max_steps: int = 80, trace_path: str
             if env.done:
                 break
     except Exception as e:
-        error = f"{type(e).__name__}: {e}"
+        body = getattr(e, "body", None)
+        error = f"{type(e).__name__}: {e}" + (f" | body: {json.dumps(body)[:800]}" if body else "")
         trace.append({"type": "error", "step": step, "error": error, "traceback": traceback.format_exc()})
 
     result = {
