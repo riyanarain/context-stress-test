@@ -19,3 +19,6 @@ venv/
 
 # OS
 .DS_Store
+
+# Run outputs
+runs/
