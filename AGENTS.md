@@ -4,7 +4,7 @@ Guide for coding agents (and people) working in this repo. Read this first.
 
 ## What this project is
 
-CS 224V project (Brooke Ballhaus, Riya Narain; mentor Vidhyakshaya Kannan). We study what makes context hard for an agent to manage, independent of task length. The main testbed is an agentic mock EHR built on Synthea synthetic patients. The agent works through tools (read labs, medications, encounters, inbox; hold or order medications, schedule visits, message clinicians) and is graded on the final state of the system. Each task family varies one difficulty factor at three levels while the environment size stays about the same. We compare context management policies across these factors, find where they break, and then design a fix.
+CS 224V project (Brooke Ballhaus, Riya Narain). We study what makes context hard for an agent to manage, independent of task length. The main testbed is an agentic mock EHR built on Synthea synthetic patients. The agent works through tools (read labs, medications, encounters, inbox; hold or order medications, schedule visits, message clinicians) and is graded on the final state of the system. Each task family varies one difficulty factor at three levels while the environment size stays about the same. We compare context management policies across these factors, find where they break, and then design a fix.
 
 All patient data is synthetic. Do not add real patient data to this repo.
 
