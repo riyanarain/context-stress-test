@@ -56,6 +56,7 @@ def main() -> None:
     ap.add_argument("--model", default=None, help="overrides LLM_MODEL")
     ap.add_argument("--base-url", default=None, help="overrides LLM_BASE_URL")
     ap.add_argument("--temperature", type=float, default=0.0, help="use -1 to omit (some reasoning models)")
+    ap.add_argument("--reasoning-effort", default=None, help="e.g. low, medium, high; passed to the API if set")
     ap.add_argument("--max-steps", type=int, default=80)
     ap.add_argument("--truncate-chars", type=int, default=3000)
     ap.add_argument("--summary-budget", type=int, default=16000)
@@ -86,7 +87,8 @@ def main() -> None:
 
     if args.client == "openai":
         temp = None if args.temperature is not None and args.temperature < 0 else args.temperature
-        client = OpenAIChatClient(model=args.model, base_url=args.base_url, temperature=temp)
+        client = OpenAIChatClient(model=args.model, base_url=args.base_url, temperature=temp,
+                                  reasoning_effort=args.reasoning_effort)
         factory = None
     else:
         client, factory = None, OracleClient

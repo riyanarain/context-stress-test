@@ -74,7 +74,9 @@ python -m agents.report runs/main --csv
 
 `--price-in` and `--price-out` are USD per million tokens for your model and only affect the cost column. Reruns skip finished episodes, so an interrupted run can be resumed with the same command. Use `--temperature -1` for models that reject a temperature setting.
 
-Useful flags: `--families`, `--levels`, `--limit` (tasks per family and level), `--policies`, `--max-steps` (default 80), `--truncate-chars` (default 3000), `--summary-budget` (tokens, default 16000).
+Gemini notes: the free tier allows only about 20 requests per day per model, and one episode can need 20 to 80 requests, so real runs need a paid tier (the project has education credits; set a budget alert first). `--reasoning-effort low` makes Gemini 3 models faster and cheaper.
+
+Useful flags: `--reasoning-effort`, `--families`, `--levels`, `--limit` (tasks per family and level), `--policies`, `--max-steps` (default 80), `--truncate-chars` (default 3000), `--summary-budget` (tokens, default 16000).
 
 ## Task families
 

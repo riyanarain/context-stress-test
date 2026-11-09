@@ -36,7 +36,8 @@ def load_dotenv(path: str | Path = ".env") -> None:
 
 class OpenAIChatClient:
     def __init__(self, model: str | None = None, base_url: str | None = None, api_key: str | None = None,
-                 temperature: float | None = 0.0, max_tokens: int = 2048, timeout: float = 180, max_retries: int = 5):
+                 temperature: float | None = 0.0, max_tokens: int = 8192, timeout: float = 300, max_retries: int = 4,
+                 reasoning_effort: str | None = None):
         from openai import OpenAI
 
         load_dotenv()
@@ -51,17 +52,26 @@ class OpenAIChatClient:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.max_retries = max_retries
+        self.reasoning_effort = reasoning_effort
 
     def _create(self, **kw):
         delay = 2.0
         for attempt in range(self.max_retries + 1):
             try:
+                extra = {}
+                if self.temperature is not None:
+                    extra["temperature"] = self.temperature
+                if self.reasoning_effort:
+                    extra["reasoning_effort"] = self.reasoning_effort
                 return self.client.chat.completions.create(model=self.model, max_tokens=self.max_tokens,
-                                                           **({"temperature": self.temperature}
-                                                              if self.temperature is not None else {}), **kw)
+                                                           **extra, **kw)
             except Exception as e:  # retry rate limits and transient server errors
                 status = getattr(e, "status_code", None)
-                if attempt == self.max_retries or (status is not None and status < 500 and status != 429):
+                text = str(getattr(e, "body", "")) + str(e)
+                daily_quota = status == 429 and ("per day" in text or "PerDay" in text)
+                timed_out = type(e).__name__ == "APITimeoutError"
+                if (attempt == self.max_retries or daily_quota or (timed_out and attempt >= 1)
+                        or (status is not None and status < 500 and status != 429)):
                     raise
                 time.sleep(delay)
                 delay = min(delay * 2, 60)
