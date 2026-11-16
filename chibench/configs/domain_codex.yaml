@@ -1,0 +1,28 @@
+name: ctx_domain_codex
+description: All 25 tasks of one CHI-Bench domain with production Codex, one attempt each. Pick the domain with --domain.
+
+defaults:
+  environment: docker
+  env_file: .env
+  concurrency: 3
+  n_attempts: 1
+  max_retries: 1
+  trials_root: logs/experiments/ctx_domain_codex
+  agent_timeout_multiplier: 2
+
+domains:
+  pa_provider:
+    dataset: data/prior_auth_provider/tasks
+    registry_path: data/prior_auth_provider/registry.json
+  pa_um:
+    dataset: data/prior_auth_um/tasks
+    registry_path: data/prior_auth_um/registry.json
+  cm:
+    dataset: data/care_management/tasks
+    registry_path: data/care_management/registry.json
+
+rows:
+  - agent: codex
+    model: openai/gpt-5.5
+    agent_kwargs:
+      reasoning_effort: high

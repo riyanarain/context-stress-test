@@ -2,13 +2,18 @@
 
 CS 224V project by Brooke Ballhaus and Riya Narain. Mentor: Vidhyakshaya Kannan.
 
-Agents can only use what is in their context, and context management policies such as truncation, summarization, and compaction each lose information in different ways. Existing evaluations mostly scale task length, but length does not necessarily reflect how hard a task's context is to manage. We study which properties of a task make context hard to manage, independent of length, compare policies across those properties, and then design a fix for the gap that matters most.
+Agents can only use what is in their context, and context management policies such as truncation, summarization, and compaction each lose information in different ways. These losses matter most in long-horizon work. We study this on CHI-Bench, a benchmark of long-horizon healthcare workflows across 20 simulated apps and a 1,279-document policy handbook. In its Marathon setting, where 25 tasks run in one session, the best reported agent drops from 28% to 3.8%. We compare production Codex with Codex using our mentor lab's context management release, audit traces to separate context failures from planning failures, and design a fix for the most common one.
 
 See [AGENTS.md](AGENTS.md) for setup, commands, and repo details.
 
-## Main testbed: agentic mock EHR
+## Main testbed: CHI-Bench
 
-An electronic health record system built on Synthea synthetic patients (no real patient data). The agent works through tools: reading labs, medications, encounters, allergies, and a clinician inbox, and holding or ordering medications, scheduling appointments, messaging clinicians, and cancelling earlier actions. It is graded on the final state of the system.
+- `chibench/` has setup and run scripts, three run configs (a 3-task smoke test, one 25-task domain, one Marathon session), a cost estimator, and a trace audit that works on any CHI-Bench trial folder.
+- [reports/chibench_public.md](reports/chibench_public.md) audits the 1,375 public leaderboard trials. Within the same task and harness, trials that loaded more context passed more often, and how much Codex truncated did not predict failure. Single tasks peak around 120K to 230K prompt tokens. This suggests context is not yet the bottleneck in single tasks, which is why we focus on Marathon sessions.
+
+## Sandbox: agentic mock EHR
+
+Our first agentic testbed, now a free sandbox for testing ideas: an electronic health record system built on Synthea synthetic patients (no real patient data). The agent works through tools: reading labs, medications, encounters, allergies, and a clinician inbox, and holding or ordering medications, scheduling appointments, messaging clinicians, and cancelling earlier actions. It is graded on the final state of the system.
 
 Four task families each vary one difficulty factor at three levels, with the environment size held about constant (8 patients, about 55K to 75K tokens):
 

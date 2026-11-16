@@ -4,14 +4,57 @@ Guide for coding agents (and people) working in this repo. Read this first.
 
 ## What this project is
 
-CS 224V project (Brooke Ballhaus, Riya Narain). We study what makes context hard for an agent to manage, independent of task length. The main testbed is an agentic mock EHR built on Synthea synthetic patients. The agent works through tools (read labs, medications, encounters, inbox; hold or order medications, schedule visits, message clinicians) and is graded on the final state of the system. Each task family varies one difficulty factor at three levels while the environment size stays about the same. We compare context management policies across these factors, find where they break, and then design a fix.
+CS 224V project (Brooke Ballhaus, Riya Narain; mentor Vidhyakshaya Kannan). We study how context management affects long-horizon agents. The main testbed is CHI-Bench (https://github.com/actava-ai/chi-bench): long-horizon healthcare workflows over 20 simulated apps and a 1,279-document policy handbook. Its Marathon setting runs 25 tasks in one session, where the best reported agent drops from 28% to 3.8%. We compare production Codex with Codex using the lab's context management release, audit traces to separate context failures from planning failures, and then design a fix.
 
-All patient data is synthetic. Do not add real patient data to this repo.
+The `ehr/` mock EHR was our first agentic testbed. Our mentor pointed out that its tasks do not need long context (the agent can fetch exactly what it needs), so it is now a free sandbox for testing ideas, not the main testbed.
+
+All patient data in this repo is synthetic. Do not add real patient data.
+
+## CHI-Bench (main testbed)
+
+```
+chibench/
+  trajectory.py           parse CHI-Bench trial folders and ATIF trajectories (any harness)
+  audit.py                one row of context and outcome features per trial
+  analyze.py              per-submission tables and task-stratified context vs passing comparisons
+  estimate.py             cost estimates from public leaderboard costs
+  setup.sh                one-time CHI-Bench setup on your machine (Docker, Hugging Face, keys)
+  run.sh                  run one of our configs through CHI-Bench's runner
+  fetch_public_traces.sh  download the public leaderboard trials and audit them
+  configs/                smoke_codex.yaml (3 tasks), domain_codex.yaml (25 tasks), marathon_codex.yaml
+reports/chibench_public.md  audit of the 1,375 public leaderboard trials
+```
+
+Analysis of public traces needs no keys and no Docker:
+
+```
+bash chibench/fetch_public_traces.sh     # clones the leaderboard (about 350 MB), audits, writes reports/chibench_public.md
+python -m chibench.estimate data/chibench/audit_public.csv --model gpt-5.5
+```
+
+Running trials needs Docker Desktop running, Python 3.12+, uv, approved access to the gated handbook (https://huggingface.co/datasets/actava/managed-care-operations-handbook), an ANTHROPIC_API_KEY (always: CHI-Bench's grader and simulated patients use Claude), and an OPENAI_API_KEY for Codex. Keys go in CHI-Bench's own `.env`, not ours.
+
+```
+bash chibench/setup.sh                                   # clones CHI-Bench to ../chi-bench and sets it up
+bash chibench/run.sh chibench/configs/smoke_codex.yaml   # 3 trials, a few dollars; check cost first
+bash chibench/run.sh chibench/configs/domain_codex.yaml --domain pa_um
+bash chibench/run.sh chibench/configs/marathon_codex.yaml --domain pa_um
+python -m chibench.audit ../chi-bench/logs/experiments --out data/chibench/audit_ours.csv
+python -m chibench.analyze data/chibench/audit_ours.csv
+```
+
+Add `--dry-run` to `run.sh` to print commands without running them. Configs use `openai/gpt-5.5`; public costs put it near $1.85 per trial plus $0.05 to $0.30 for grading, and `gpt-5.6-luna` near $0.30. Change the `model` in a config to switch.
+
+The lab's Codex release (shared privately) is not wired in yet. When it arrives, add it as a second row in each config, likely via a custom agent per CHI-Bench `docs/extending.md`. Do not commit the release itself.
+
+Audit signals (see `chibench/audit.py`): truncated tool outputs and tokens hidden (Codex), outputs offloaded to files and whether they were reopened (Claude Code), handbook reads and re-reads, peak prompt tokens (when the harness logs them), and which check groups failed. Public traces are correlational; only our controlled runs (same agent, context policy changed) test causes.
 
 ## Layout
 
 ```
-ehr/                  agentic mock EHR (main testbed)
+chibench/             CHI-Bench setup, run configs, trace audit (main testbed; see above)
+reports/              generated analysis reports (committed)
+ehr/                  agentic mock EHR (sandbox)
   records.py          loads Synthea CSVs into structured patient records; TODAY = 2021-12-01
   env.py              EHREnv: tools, state, mid-task events, write actions
   families.py         the 4 task families and their 3 difficulty levels

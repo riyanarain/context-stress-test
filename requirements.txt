@@ -1,2 +1,4 @@
 openai>=1.40
 pytest>=7
+zstandard>=0.22
+pyyaml>=6

@@ -1,0 +1,28 @@
+name: ctx_marathon_codex
+description: CHI-Bench Marathon (all 25 tasks of a domain in one session) with production Codex, one attempt. Pick the domain with --domain.
+
+defaults:
+  environment: docker
+  env_file: .env
+  concurrency: 1
+  n_attempts: 1
+  max_retries: 1
+  trials_root: logs/experiments/ctx_marathon_codex
+  agent_timeout_multiplier: 2
+
+domains:
+  pa_provider:
+    dataset: data/marathon/prior_auth_provider
+    registry_path: data/marathon/prior_auth_provider/registry.json
+  pa_um:
+    dataset: data/marathon/prior_auth_um
+    registry_path: data/marathon/prior_auth_um/registry.json
+  cm:
+    dataset: data/marathon/care_management
+    registry_path: data/marathon/care_management/registry.json
+
+rows:
+  - agent: codex
+    model: openai/gpt-5.5
+    agent_kwargs:
+      reasoning_effort: high

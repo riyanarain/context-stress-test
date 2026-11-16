@@ -1,0 +1,22 @@
+name: ctx_smoke_codex
+description: One task per CHI-Bench domain with production Codex. Checks setup and cost before larger runs.
+
+defaults:
+  environment: docker
+  env_file: .env
+  trials_root: logs/experiments/ctx_smoke_codex
+  agent_timeout_multiplier: 2.0
+
+domains:
+  pa_provider:
+    dataset: data/prior_auth_provider/tasks/pa_t014_t014_o001_p01_new_referral_provider
+  pa_um:
+    dataset: data/prior_auth_um/tasks/pa_t008_t008_o002_p01_mdreview_payer
+  cm:
+    dataset: data/care_management/tasks/cm_afib_moderate_anxious_001
+
+rows:
+  - agent: codex
+    model: openai/gpt-5.5
+    agent_kwargs:
+      reasoning_effort: high
